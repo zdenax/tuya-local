@@ -394,6 +394,12 @@ class TuyaLocalLight(TuyaLocalEntity, LightEntity):
                 )
 
                 current = self._unpacked_rgbhsv
+                if (
+                    current is None
+                    and self._device.get_property(self._rgbhsv_dps.id) is None
+                ):
+                    # Some bulbs do not report the colour dp until it is set
+                    current = {n: 0 for n in fmt["names"]}
                 if current:
                     ordered = []
                     idx = 0

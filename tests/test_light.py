@@ -402,3 +402,54 @@ async def test_rgbhsv_invalid_colour_does_not_break_state_or_turn_on(
     dps["1"] = False
     await light.async_turn_on(hs_color=(0, 100), brightness=255)
     mock_device.async_set_properties.assert_called_once_with({"1": True})
+
+
+@pytest.mark.asyncio
+async def test_rgbhsv_turn_on_when_colour_dp_not_reported():
+    """Some bulbs omit the colour dp until it is set; colour must still be sent"""
+    mock_device = AsyncMock()
+    mock_device.get_property = Mock()
+    dps = {"20": True, "21": "white", "22": 1000}
+    mock_device.get_property.side_effect = lambda arg: dps.get(arg)
+    config = TuyaEntityConfig(
+        Mock(),
+        {
+            "entity": "light",
+            "dps": [
+                {"id": "20", "name": "switch", "type": "boolean"},
+                {
+                    "id": "21",
+                    "name": "color_mode",
+                    "type": "string",
+                    "mapping": [
+                        {"dps_val": "white", "value": "color_temp"},
+                        {"dps_val": "colour", "value": "hs"},
+                    ],
+                },
+                {
+                    "id": "22",
+                    "name": "brightness",
+                    "type": "integer",
+                    "range": {"min": 10, "max": 1000},
+                },
+                {
+                    "id": "24",
+                    "name": "rgbhsv",
+                    "type": "hex",
+                    "optional": True,
+                    "format": [
+                        {"name": "h", "bytes": 2, "range": {"min": 0, "max": 360}},
+                        {"name": "s", "bytes": 2, "range": {"min": 0, "max": 1000}},
+                        {"name": "v", "bytes": 2, "range": {"min": 0, "max": 1000}},
+                    ],
+                },
+            ],
+        },
+    )
+    light = TuyaLocalLight(mock_device, config)
+    assert light.hs_color is None
+    await light.async_turn_on(hs_color=(240, 100), brightness=255)
+    mock_device.async_set_properties.assert_called_once()
+    sent = mock_device.async_set_properties.call_args[0][0]
+    assert sent["21"] == "colour"
+    assert sent["24"] == "00f003e803e8"
